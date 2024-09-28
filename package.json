@@ -1,20 +1,23 @@
 {
     "name": "@harrydehix/everyjs",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "description": "simple library to repeatedly execute code (every week, day, hour, minute, ...) ",
     "type": "module",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs",
+    "types": "./dist/types/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/index.js",
-            "types": "./dist/index.d.ts"
+            "require": "./dist/cjs/index.js",
+            "import": "./dist/esm/index.js",
+            "types": "./dist/esm/index.d.ts"
         }
     },
     "scripts": {
-        "build": "npx tsc",
-        "watch": "npx tsc --watch",
-        "test": "npx tsc && node dist/test.js"
+        "build:cjs": "npx tsc -p tsconfig.cjs.json",
+        "build:esm": "npx tsc -p tsconfig.esm.json",
+        "build": "npm run build:cjs && npm run build:esm",
+        "test": "npm run build && node dist/test.js"
     },
     "keywords": [
         "scheduler",
