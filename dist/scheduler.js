@@ -3,9 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Schedule = exports.TimeUnits = void 0;
 exports.previous = previous;
 exports.fromIntervalString = fromIntervalString;
-exports.schedule = schedule;
+exports.every = every;
 const luxon_1 = require("luxon");
 const long_timeout_1 = require("long-timeout");
+/**
+ * All supported time units as array.
+ */
 exports.TimeUnits = [
     "second",
     "minute",
@@ -33,6 +36,11 @@ function previous(interval) {
             return "year";
     }
 }
+/**
+ * Parses a time interval from a string. Only supports the following format: <number><unit> (e.g. `'5years'`, `'1minute'`, ...)
+ * @param interval the time interval's string representation
+ * @returns the parsed time interval
+ */
 function fromIntervalString(interval) {
     interval = interval.trim();
     let number = "";
@@ -89,15 +97,88 @@ function fromIntervalString(interval) {
 class Schedule {
     interval = 1;
     unit = "second";
-    action;
-    align;
+    action = () => { };
+    alignment = {
+        millisecond: 0,
+        second: 0,
+        minute: 0,
+        hour: 0,
+        day: 0,
+        month: 0,
+    };
     timeout_id;
     running = false;
-    constructor(action, options = { align: true }) {
+    /**
+     * Sets the scheduled action.
+     * @param action the action to execute repeatedly
+     */
+    do(action) {
         this.action = action;
-        this.align = options.align ?? true;
+        return this;
     }
-    every(interval, unit = "second") {
+    /**
+     * Aligns a task.
+     * @example
+     * ```ts
+     * // This task gets executed every day at 5:30
+        const task = every(1, "day")
+            .do((time) => {
+                console.log(`Hello world! It is: ${time}`);
+            })
+            .align({ hour: 5, minute: 30 });
+
+        task.start();
+     * ```
+     * @param alignment
+     * @returns
+     */
+    align(alignment) {
+        if (alignment !== false) {
+            if (alignment.month !== undefined) {
+                if (alignment.day === undefined)
+                    alignment.day = 1;
+                if (alignment.hour === undefined)
+                    alignment.hour = 0;
+                if (alignment.minute === undefined)
+                    alignment.minute = 0;
+                if (alignment.second === undefined)
+                    alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+            else if (alignment.day !== undefined) {
+                if (alignment.hour === undefined)
+                    alignment.hour = 0;
+                if (alignment.minute === undefined)
+                    alignment.minute = 0;
+                if (alignment.second === undefined)
+                    alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+            else if (alignment.hour !== undefined) {
+                if (alignment.minute === undefined)
+                    alignment.minute = 0;
+                if (alignment.second === undefined)
+                    alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+            else if (alignment.minute !== undefined) {
+                if (alignment.second === undefined)
+                    alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+            else if (alignment.second !== undefined) {
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+        }
+        this.alignment = alignment;
+        return this;
+    }
+    constructor(interval, unit = "second") {
         if (typeof interval === "object") {
             this.interval = interval.value;
             this.unit = interval.unit;
@@ -106,59 +187,74 @@ class Schedule {
             this.interval = interval;
             this.unit = unit;
         }
-        return this;
     }
+    /**
+     * Gets the next schedule time.
+     * @returns
+     */
     nextScheduleTime() {
         let nextScheduleTime = luxon_1.DateTime.now();
+        let alignment = false;
+        if (typeof this.alignment === "object") {
+            alignment = {
+                millisecond: this.alignment.millisecond ?? nextScheduleTime.millisecond,
+                second: this.alignment.second ?? nextScheduleTime.second,
+                minute: this.alignment.minute ?? nextScheduleTime.minute,
+                hour: this.alignment.hour ?? nextScheduleTime.hour,
+                month: this.alignment.month ?? nextScheduleTime.month,
+            };
+        }
         switch (this.unit) {
             case "second":
-                if (this.align)
-                    nextScheduleTime = nextScheduleTime.set({ millisecond: 0 });
+                if (alignment)
+                    nextScheduleTime = nextScheduleTime.set({
+                        millisecond: alignment.millisecond,
+                    });
                 nextScheduleTime = nextScheduleTime.plus({
                     seconds: this.interval,
                 });
                 break;
             case "minute":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     minutes: this.interval,
                 });
                 break;
             case "hour":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     hours: this.interval,
                 });
                 break;
             case "day":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     days: this.interval,
                 });
                 break;
             case "week":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        localWeekday: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        localWeekday: alignment.day,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -166,13 +262,13 @@ class Schedule {
                 });
                 break;
             case "month":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        day: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        day: alignment.day,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -180,14 +276,14 @@ class Schedule {
                 });
                 break;
             case "year":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        day: 1,
-                        month: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        day: alignment.day,
+                        month: alignment.month,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -197,6 +293,7 @@ class Schedule {
         }
         return nextScheduleTime;
     }
+    /** Starts the schedule. */
     start() {
         this.running = true;
         const nextScheduleTime = this.nextScheduleTime();
@@ -207,6 +304,7 @@ class Schedule {
                 this.start();
         }, nextScheduleMilliseconds);
     }
+    /** Stops the schedule. */
     stop() {
         this.running = false;
         if (this.timeout_id)
@@ -214,6 +312,17 @@ class Schedule {
     }
 }
 exports.Schedule = Schedule;
-function schedule(action) {
-    return new Schedule(action);
+/**
+ * Creates a new schedule.
+ * @example
+ * ```
+ * every(23, "second").do(() => {
+ *  console.log("Hello world!");
+ * }).start();
+ * ```
+ * @param action
+ * @returns
+ */
+function every(interval, unit = "second") {
+    return new Schedule(interval, unit);
 }

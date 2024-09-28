@@ -1,6 +1,9 @@
-import { DateTime } from "luxon";
+import { DateTime, WeekNumbers } from "luxon";
 import { Timeout, clearTimeout, setTimeout } from "long-timeout";
 
+/**
+ * A supported time unit.
+ */
 export type TimeUnit =
     | "second"
     | "minute"
@@ -10,6 +13,9 @@ export type TimeUnit =
     | "month"
     | "year";
 
+/**
+ * All supported time units as array.
+ */
 export const TimeUnits: TimeUnit[] = [
     "second",
     "minute",
@@ -43,6 +49,22 @@ export function previous(
 
 export type TimeInterval = { value: number; unit: TimeUnit };
 
+export type Alignment =
+    | false
+    | {
+          millisecond?: number;
+          second?: number;
+          minute?: number;
+          hour?: number;
+          day?: number;
+          month?: number;
+      };
+
+/**
+ * Parses a time interval from a string. Only supports the following format: <number><unit> (e.g. `'5years'`, `'1minute'`, ...)
+ * @param interval the time interval's string representation
+ * @returns the parsed time interval
+ */
 export function fromIntervalString(interval: string): TimeInterval {
     interval = interval.trim();
 
@@ -96,20 +118,77 @@ export function fromIntervalString(interval: string): TimeInterval {
 export class Schedule {
     interval: number = 1;
     unit: TimeUnit = "second";
-    action: (time: DateTime) => void;
-    align: boolean;
+    action: (time: DateTime) => void = () => {};
+    alignment: Alignment = {
+        millisecond: 0,
+        second: 0,
+        minute: 0,
+        hour: 0,
+        day: 0,
+        month: 0,
+    };
     timeout_id?: Timeout;
     running: boolean = false;
 
-    constructor(
-        action: (time: DateTime) => void,
-        options: { align?: boolean } = { align: true }
-    ) {
+    /**
+     * Sets the scheduled action.
+     * @param action the action to execute repeatedly
+     */
+    do(action: (time: DateTime) => void) {
         this.action = action;
-        this.align = options.align ?? true;
+        return this;
     }
 
-    every(interval: TimeInterval | number, unit: TimeUnit = "second") {
+    /**
+     * Aligns a task.
+     * @example
+     * ```ts
+     * // This task gets executed every day at 5:30
+        const task = every(1, "day")
+            .do((time) => {
+                console.log(`Hello world! It is: ${time}`);
+            })
+            .align({ hour: 5, minute: 30 });
+
+        task.start();
+     * ```
+     * @param alignment 
+     * @returns 
+     */
+    align(alignment: Alignment) {
+        if (alignment !== false) {
+            if (alignment.month !== undefined) {
+                if (alignment.day === undefined) alignment.day = 1;
+                if (alignment.hour === undefined) alignment.hour = 0;
+                if (alignment.minute === undefined) alignment.minute = 0;
+                if (alignment.second === undefined) alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            } else if (alignment.day !== undefined) {
+                if (alignment.hour === undefined) alignment.hour = 0;
+                if (alignment.minute === undefined) alignment.minute = 0;
+                if (alignment.second === undefined) alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            } else if (alignment.hour !== undefined) {
+                if (alignment.minute === undefined) alignment.minute = 0;
+                if (alignment.second === undefined) alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            } else if (alignment.minute !== undefined) {
+                if (alignment.second === undefined) alignment.second = 0;
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            } else if (alignment.second !== undefined) {
+                if (alignment.millisecond === undefined)
+                    alignment.millisecond = 0;
+            }
+        }
+        this.alignment = alignment;
+        return this;
+    }
+
+    constructor(interval: TimeInterval | number, unit: TimeUnit = "second") {
         if (typeof interval === "object") {
             this.interval = interval.value;
             this.unit = interval.unit;
@@ -117,60 +196,85 @@ export class Schedule {
             this.interval = interval;
             this.unit = unit;
         }
-        return this;
     }
 
+    /**
+     * Gets the next schedule time.
+     * @returns
+     */
     nextScheduleTime() {
         let nextScheduleTime = DateTime.now();
+
+        let alignment: Alignment = false;
+        if (typeof this.alignment === "object") {
+            alignment = {
+                millisecond:
+                    this.alignment.millisecond ?? nextScheduleTime.millisecond,
+                second: this.alignment.second ?? nextScheduleTime.second,
+                minute: this.alignment.minute ?? nextScheduleTime.minute,
+                hour: this.alignment.hour ?? nextScheduleTime.hour,
+                month: this.alignment.month ?? nextScheduleTime.month,
+            };
+        }
+
         switch (this.unit) {
             case "second":
-                if (this.align)
-                    nextScheduleTime = nextScheduleTime.set({ millisecond: 0 });
+                if (alignment)
+                    nextScheduleTime = nextScheduleTime.set({
+                        millisecond: alignment.millisecond,
+                    });
                 nextScheduleTime = nextScheduleTime.plus({
                     seconds: this.interval,
                 });
                 break;
             case "minute":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     minutes: this.interval,
                 });
                 break;
             case "hour":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     hours: this.interval,
                 });
                 break;
             case "day":
-                if (this.align)
+                if (alignment)
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
                     });
                 nextScheduleTime = nextScheduleTime.plus({
                     days: this.interval,
                 });
                 break;
             case "week":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        localWeekday: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        localWeekday: alignment.day as
+                            | 1
+                            | 2
+                            | 3
+                            | 4
+                            | 5
+                            | 6
+                            | 7,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -178,13 +282,13 @@ export class Schedule {
                 });
                 break;
             case "month":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        day: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        day: alignment.day,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -192,14 +296,14 @@ export class Schedule {
                 });
                 break;
             case "year":
-                if (this.align) {
+                if (alignment) {
                     nextScheduleTime = nextScheduleTime.set({
-                        millisecond: 0,
-                        second: 0,
-                        minute: 0,
-                        hour: 0,
-                        day: 1,
-                        month: 1,
+                        millisecond: alignment.millisecond,
+                        second: alignment.second,
+                        minute: alignment.minute,
+                        hour: alignment.hour,
+                        day: alignment.day,
+                        month: alignment.month,
                     });
                 }
                 nextScheduleTime = nextScheduleTime.plus({
@@ -210,6 +314,7 @@ export class Schedule {
         return nextScheduleTime;
     }
 
+    /** Starts the schedule. */
     start() {
         this.running = true;
 
@@ -222,12 +327,27 @@ export class Schedule {
         }, nextScheduleMilliseconds);
     }
 
+    /** Stops the schedule. */
     stop() {
         this.running = false;
         if (this.timeout_id) clearTimeout(this.timeout_id);
     }
 }
 
-export function schedule(action: (time: DateTime) => void) {
-    return new Schedule(action);
+/**
+ * Creates a new schedule.
+ * @example
+ * ```
+ * every(23, "second").do(() => {
+ *  console.log("Hello world!");
+ * }).start();
+ * ```
+ * @param action
+ * @returns
+ */
+export function every(
+    interval: TimeInterval | number,
+    unit: TimeUnit = "second"
+) {
+    return new Schedule(interval, unit);
 }
