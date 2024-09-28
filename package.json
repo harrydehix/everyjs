@@ -1,17 +1,17 @@
 {
     "name": "@harrydehix/everyjs",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "description": "simple library to repeatedly execute code (every week, day, hour, minute, ...) ",
     "type": "module",
     "main": "./dist/cjs/index.cjs",
-    "module": "./dist/esm/index.mjs",
+    "module": "./dist/esm/index.js",
     "types": "./dist/types/index.d.ts",
     "files": [
         "dist"
     ],
     "exports": {
         ".": {
-            "require": "./dist/cjs/index.js",
+            "require": "./dist/cjs/index.cjs",
             "import": "./dist/esm/index.js",
             "types": "./dist/esm/index.d.ts"
         }
