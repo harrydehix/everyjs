@@ -1,6 +1,6 @@
 {
     "name": "@harrydehix/everyjs",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "description": "simple library to repeatedly execute code (every week, day, hour, minute, ...) ",
     "type": "module",
     "main": "./dist/cjs/index.js",
@@ -17,10 +17,11 @@
         }
     },
     "scripts": {
-        "build:cjs": "npx tsc -p tsconfig.cjs.json",
+        "build:cjs": "npx tsc -p tsconfig.cjs.json && npm run rename:cjs",
         "build:esm": "npx tsc -p tsconfig.esm.json",
-        "build": "npm run build:cjs && npm run build:esm",
-        "test": "npm run build && node dist/test.js"
+        "build": "rd /s /q \"dist\" && npm run build:cjs && npm run build:esm",
+        "test": "npm run build && node dist/test.js",
+        "rename:cjs": "cd \"./dist/cjs\" && ren \"index.js\" \"index.cjs\""
     },
     "keywords": [
         "scheduler",
